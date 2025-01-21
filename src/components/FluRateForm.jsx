@@ -4,11 +4,16 @@ import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS } from 'chart.js/auto';
 import { saudiCities } from '../constants/cities';
 import { getChartData, chartOptions } from '../utils/chartConfig';
+import { calculateSpreadRate } from '../utils/fluRateCalculator';
+import { baseRates } from '../constants/fluRates';
 
 export default function FluRateForm() {
   const [selectedCities, setSelectedCities] = useState([]);
   const [populationDensity, setPopulationDensity] = useState(50);
   const [temperature, setTemperature] = useState(25);
+  const [humidity, setHumidity] = useState(50);
+  const [sunExposure, setSunExposure] = useState(30);
+  const [airPollution, setAirPollution] = useState(20);
   const [fluRates, setFluRates] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -17,14 +22,23 @@ export default function FluRateForm() {
     setLoading(true);
     
     try {
-      const mockRates = selectedCities.map(city => ({
-        city: city.label,
-        rate: Math.floor(Math.random() * (30 - 10 + 1)) + 10 + 
-              (populationDensity/100 * 20) + 
-              (temperature > 25 ? 15 : 5)
-      }));
-      
-      setFluRates(mockRates);
+      const calculatedRates = selectedCities.map(city => {
+        const factors = {
+          temperature: Number(temperature),
+          humidity: Number(humidity),
+          populationDensity: Number(populationDensity),
+          sunExposure: Number(sunExposure),
+          airPollution: Number(airPollution)
+        };
+
+        return {
+          city: city.label,
+          rate: calculateSpreadRate(baseRates[city.value], factors),
+          factors
+        };
+      });
+
+      setFluRates(calculatedRates);
     } catch (error) {
       console.error('Calculation error:', error);
       Sentry.captureException(error);
@@ -81,6 +95,51 @@ export default function FluRateForm() {
               required
             />
           </div>
+
+          <div>
+            <label className="block text-gray-700 text-sm font-bold mb-2">
+              الرطوبة النسبية (%):
+              <span className="ml-2 text-blue-600">{humidity}</span>
+            </label>
+            <input
+              type="range"
+              min="1"
+              max="100"
+              value={humidity}
+              onChange={(e) => setHumidity(e.target.value)}
+              className="w-full mt-2 cursor-pointer"
+            />
+          </div>
+
+          <div>
+            <label className="block text-gray-700 text-sm font-bold mb-2">
+              التعرض للشمس (ساعات/يوم):
+              <span className="ml-2 text-blue-600">{sunExposure}</span>
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="12"
+              value={sunExposure}
+              onChange={(e) => setSunExposure(e.target.value)}
+              className="w-full mt-2 cursor-pointer"
+            />
+          </div>
+
+          <div>
+            <label className="block text-gray-700 text-sm font-bold mb-2">
+              تلوث الهواء (PM2.5 μg/m³):
+              <span className="ml-2 text-blue-600">{airPollution}</span>
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="500"
+              value={airPollution}
+              onChange={(e) => setAirPollution(e.target.value)}
+              className="w-full mt-2 cursor-pointer"
+            />
+          </div>
         </div>
 
         <button
@@ -100,6 +159,23 @@ export default function FluRateForm() {
               data={getChartData(fluRates)}
               options={chartOptions}
             />
+            
+            <div className="mt-6 grid grid-cols-2 gap-4 text-sm">
+              {fluRates.map((city, index) => (
+                <div key={index} className="p-4 bg-white rounded shadow">
+                  <h3 className="font-bold mb-2">{city.city}</h3>
+                  <p>معدل الانتشار: {city.rate.toFixed(1)}%</p>
+                  <p className="text-gray-600 text-xs mt-2">
+                    العوامل المؤثرة:<br />
+                    الحرارة: {city.factors.temperature}°C<br />
+                    الرطوبة: {city.factors.humidity}%<br />
+                    الكثافة: {city.factors.populationDensity}<br />
+                    الشمس: {city.factors.sunExposure}h<br />
+                    التلوث: {city.factors.airPollution}μg
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
